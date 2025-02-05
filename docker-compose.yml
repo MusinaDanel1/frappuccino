@@ -1,4 +1,3 @@
-version: '3.8'
 
 services:
   app:
@@ -13,6 +12,13 @@ services:
       - DB_PORT=5432
     depends_on:
       - db
+    restart: always
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "db", "-p", "5432"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 10s
 
   db:
     image: postgres:15
