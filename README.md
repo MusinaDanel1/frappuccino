@@ -1,85 +1,84 @@
-Frappuccino - Coffee Shop Management System
+# Frappuccino – Coffee Shop Management System
 
-Frappuccino is a coffee shop management system designed to streamline operations, manage orders, track sales, and enhance customer experience.
+## Overview  
+Frappuccino is a **coffee shop management system** designed to handle orders, inventory, employees, and analytics efficiently. The system is built in **Go** with a **PostgreSQL** database and runs inside **Docker** containers for easy deployment.  
 
-Features
+It provides a **REST API** to manage key operations such as **placing orders, tracking inventory, generating sales reports, and managing employees**.  
 
-Order Management
+---
 
-Create, edit, and cancel orders.
+## Technologies Used  
+- **Go** – Backend development  
+- **PostgreSQL** – Database  
+- **Docker & Docker Compose** – Containerization and orchestration  
+- **gofumpt** – Code formatting  
+- **REST API** – Communication between services  
 
-Track order status (processing, preparing, completed, etc.).
+---
 
-Support for pre-orders and delivery.
+## System Architecture  
+The project follows a **modular structure** with separate handlers for different functionalities. Data is stored in **PostgreSQL**, and all business logic is handled in the **Go backend**.
 
-Customer Management
+### Entity-Relationship Diagram (ERD)  
+Your ERD diagram outlines key database entities such as:
+- **Orders** (tracking customer purchases)
+- **Products** (menu items)
+- **Inventory** (stock management)
+- **Employees** (staff details)
+- **Transactions** (sales records)
+- **Customers** (optional, for tracking loyalty programs)  
 
-Store customer details (name, contact info, preferences).
+---
 
-Implement a loyalty program (reward points, discounts, personalized offers).
+## Key Features  
+✅ **Order Management** – Create, update, and track orders  
+✅ **Inventory Tracking** – Monitor stock levels, update ingredients  
+✅ **Employee Management** – Add staff, assign roles  
+✅ **Sales Reports & Analytics** – Aggregate daily/weekly/monthly sales  
+✅ **Database Migration** – JSON to PostgreSQL  
 
-Menu & Product Management
+---
 
-Manage a catalog of drinks and food items.
+## API Endpoints  
+| Method | Endpoint | Description |
+|--------|---------|-------------|
+| **GET** | `/orders` | Get all orders |
+| **POST** | `/orders` | Create a new order |
+| **GET** | `/orders/{id}` | Get order details |
+| **PUT** | `/orders/{id}` | Update an order |
+| **DELETE** | `/orders/{id}` | Cancel an order |
+| **GET** | `/inventory` | Get inventory status |
+| **POST** | `/inventory` | Add new stock |
+| **PUT** | `/inventory/{id}` | Update stock details |
+| **GET** | `/employees` | Get employee list |
+| **POST** | `/employees` | Add new employee |
+| **GET** | `/sales/reports` | Generate sales report |
+| **GET** | `/analytics/top-products` | Get best-selling products |
 
-Track ingredient availability.
+---
 
-Set pricing and promotions.
+## How It Works  
+1. The **admin** sets up the coffee shop's menu and inventory.  
+2. A **barista** takes customer orders, which are recorded in the system.  
+3. Inventory levels automatically **update** after an order is placed.  
+4. The **system** tracks employee shifts and performance.  
+5. Business **owners** can generate reports on sales, top products, and revenue trends.  
 
-Financial Reports & Analytics
+---
 
-Generate sales reports and product popularity statistics.
+## Setup & Deployment  
+### Run with Docker  
+1. Clone the repository  
+   ```sh
+   git clone https://github.com/your-username/frappuccino.git  
+   cd frappuccino  
+   ```
+2. Start the services  
+   ```sh
+   docker compose up  
+   ```
+3. API will be available at `http://localhost:8080`  
 
-Track revenue and expenses.
-
-Integration with payment systems.
-
-Administration
-
-Manage user roles and access permissions.
-
-Configure coffee shop settings (working hours, locations, etc.).
-
-Integrations
-
-Connect with POS systems and delivery services.
-
-CRM and marketing tool integrations.
-
-Tech Stack
-
-Backend: Go + PostgreSQL
-
-Containerization: Docker (docker compose up)
-
-Code Formatting: gofumpt
-
-API: SQL-based handlers for database interactions
-
-Reports & Aggregation: Specialized endpoints for analytics
-
-Getting Started
-
-Prerequisites
-
-Docker
-
-Go
-
-PostgreSQL
-
-Installation
-
-# Clone the repository
-git clone https://github.com/your-username/frappuccino.git
-cd frappuccino
-
-# Start the services
-docker compose up --build
-
-Configuration
-
-Update .env with your database credentials and other settings.
 
 # Entity-Relationship Diagram (ERD)
 
