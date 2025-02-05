@@ -1,3 +1,86 @@
+Frappuccino - Coffee Shop Management System
+
+Frappuccino is a coffee shop management system designed to streamline operations, manage orders, track sales, and enhance customer experience.
+
+Features
+
+Order Management
+
+Create, edit, and cancel orders.
+
+Track order status (processing, preparing, completed, etc.).
+
+Support for pre-orders and delivery.
+
+Customer Management
+
+Store customer details (name, contact info, preferences).
+
+Implement a loyalty program (reward points, discounts, personalized offers).
+
+Menu & Product Management
+
+Manage a catalog of drinks and food items.
+
+Track ingredient availability.
+
+Set pricing and promotions.
+
+Financial Reports & Analytics
+
+Generate sales reports and product popularity statistics.
+
+Track revenue and expenses.
+
+Integration with payment systems.
+
+Administration
+
+Manage user roles and access permissions.
+
+Configure coffee shop settings (working hours, locations, etc.).
+
+Integrations
+
+Connect with POS systems and delivery services.
+
+CRM and marketing tool integrations.
+
+Tech Stack
+
+Backend: Go + PostgreSQL
+
+Containerization: Docker (docker compose up)
+
+Code Formatting: gofumpt
+
+API: SQL-based handlers for database interactions
+
+Reports & Aggregation: Specialized endpoints for analytics
+
+Getting Started
+
+Prerequisites
+
+Docker
+
+Go
+
+PostgreSQL
+
+Installation
+
+# Clone the repository
+git clone https://github.com/your-username/frappuccino.git
+cd frappuccino
+
+# Start the services
+docker compose up --build
+
+Configuration
+
+Update .env with your database credentials and other settings.
+
 # Entity-Relationship Diagram (ERD)
 
 ```mermaid
