@@ -21,6 +21,8 @@ type OrderInterface interface {
 	Delete(orderID string) error
 	List() ([]models.Order, error)
 	GetOrderedItemsCount(startDate, endDate *string) (map[string]int, error)
+	CreateOrder(tx *sql.Tx, order models.Order, total float64) (string, error)
+	BeginTransaction() (*sql.Tx, error)
 }
 
 func NewOrderRepository(dsn string) (*OrderRepository, error) {
@@ -328,4 +330,32 @@ func (repo *OrderRepository) GetOrderedItemsCount(startDate, endDate *string) (m
 		return nil, fmt.Errorf("error iterating over rows: %w", err)
 	}
 	return result, nil
+}
+
+func (r *OrderRepository) BeginTransaction() (*sql.Tx, error) {
+	return r.db.Begin()
+}
+
+func (r *OrderRepository) CreateOrder(tx *sql.Tx, order models.Order, total float64) (string, error) {
+	var orderID string
+	query := `
+		INSERT INTO orders (customer_name, total_amount, status) 
+		VALUES ($1, $2, 'accepted') RETURNING order_id;
+	`
+	err := tx.QueryRow(query, order.CustomerName, total).Scan(&orderID)
+	if err != nil {
+		return "", fmt.Errorf("failed to create order: %w", err)
+	}
+
+	for _, item := range order.Items {
+		_, err := tx.Exec(`
+			INSERT INTO order_items (order_id, menu_item_id, quantity, price_at_order) 
+VALUES ($1, $2, $3, (SELECT price FROM menu_items WHERE menu_item_id = $2));
+		`, orderID, item.ProductID, item.Quantity)
+		if err != nil {
+			return "", fmt.Errorf("failed to insert order item: %w", err)
+		}
+	}
+
+	return orderID, nil
 }

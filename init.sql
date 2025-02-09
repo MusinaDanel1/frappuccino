@@ -1,5 +1,5 @@
 -- Create the necessary ENUM types
-CREATE TYPE order_status AS ENUM('pending', 'processing', 'completed', 'cancelled');
+CREATE TYPE order_status AS ENUM('accepted','pending', 'processing', 'completed', 'cancelled','rejected');
 CREATE TYPE unit_of_measurement AS ENUM('mg', 'g', 'kg', 'oz', 'lb', 'ml', 'l', 'dl', 'fl', 'pc', 'dozen', 'cup', 'tsp', 'tbsp', 'shots');  -- Allow Pastry for non-standard units
 CREATE TYPE type_of_transaction AS ENUM('addition', 'deduction');
 
@@ -78,16 +78,11 @@ CREATE TABLE price_history(
     changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create Indexes
-CREATE INDEX idx_orders_status ON orders(status);
-CREATE INDEX idx_inventory_name ON inventory(name);
-CREATE INDEX idx_menu_item_ingredients ON menu_item_ingredients(menu_item_id, inventory_id);
-CREATE INDEX idx_menu_items_fulltext ON menu_items USING gin (to_tsvector('english', name));
 
 -- Insert sample data into inventory
 INSERT INTO inventory(name, quantity, unit, last_updated) VALUES
     ('Coffee Beans', 5500, 'g', '2024-01-01'),
-    ('Muffin', 300, 'pc', '2024-01-01'),  
+    ('Muffin', 3000, 'pc', '2024-01-01'),  
     ('Milk', 1000, 'l', '2024-01-01'),
     ('Sugar', 1000, 'g', '2024-01-01'),
     ('Flour', 10000, 'g', '2024-01-01'),

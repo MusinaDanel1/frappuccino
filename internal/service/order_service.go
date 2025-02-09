@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"frappuccino/internal/dal"
 	"frappuccino/models"
-	"math/rand"
 	"os"
-	"strconv"
 	"time"
 )
 
@@ -29,8 +27,6 @@ func NewOrderService(orderRepo dal.OrderInterface, inventoryRepo dal.InventoryIn
 func (s *OrderService) CreateOrder(order models.Order) error {
 	requiredIngredients := make(map[string]float64)
 
-	orderID := strconv.FormatInt(time.Now().UnixNano(), 10) + strconv.Itoa(rand.Intn(1000))
-	order.ID = orderID
 	for _, item := range order.Items {
 		menuItem, err := s.menuRepo.GetByID(item.ProductID)
 		if err != nil {
@@ -146,4 +142,61 @@ func areOrdersEqual(oldItems, newItems []models.OrderItem) bool {
 	}
 
 	return true
+}
+
+func (s *OrderService) ProcessBulkOrders(orders []models.Order) (map[string]interface{}, error) {
+	var processedOrders []map[string]interface{}
+	var totalRevenue float64
+	accepted, rejected := 0, 0
+	inventoryUpdates := make(map[string]int)
+
+	tx, err := s.orderRepo.BeginTransaction()
+	if err != nil {
+		return nil, fmt.Errorf("failed to start transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	for _, order := range orders {
+		total, sufficient, updates := s.inventoryRepo.CheckAndReserveInventory(tx, order.Items)
+		if sufficient {
+			orderID, err := s.orderRepo.CreateOrder(tx, order, total)
+			if err != nil {
+				return nil, err
+			}
+			processedOrders = append(processedOrders, map[string]interface{}{
+				"order_id":      orderID,
+				"customer_name": order.CustomerName,
+				"status":        "accepted",
+				"total":         total,
+			})
+			totalRevenue += total
+			accepted++
+
+			for ingredient, qty := range updates {
+				inventoryUpdates[ingredient] += qty
+			}
+		} else {
+			processedOrders = append(processedOrders, map[string]interface{}{
+				"customer_name": order.CustomerName,
+				"status":        "rejected",
+				"reason":        "insufficient_inventory",
+			})
+			rejected++
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return map[string]interface{}{
+		"processed_orders": processedOrders,
+		"summary": map[string]interface{}{
+			"total_orders":      len(orders),
+			"accepted":          accepted,
+			"rejected":          rejected,
+			"total_revenue":     totalRevenue,
+			"inventory_updates": inventoryUpdates,
+		},
+	}, nil
 }

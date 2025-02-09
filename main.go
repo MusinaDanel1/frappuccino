@@ -53,6 +53,7 @@ func main() {
 		log.Fatalf("Error creating menu handler: %v", err)
 	}
 	log.Println("Menu handler created successfully.")
+
 	// Order handler
 	log.Println("Starting order handler setup...")
 	orderRepo, err := d.NewOrderRepository(dsn)
@@ -66,16 +67,24 @@ func main() {
 		log.Fatalf("Error creating order Handler: %v", err)
 	}
 	log.Println("Order handler created successfully.")
+
 	// Aggregations handler
-	// reportsService := s.NewReportsService(orderRepo, menuRepo)
-	// reportsHandler, err := h.NewReportsHandler(reportsService, logFile)
-	// if err != nil {
-	// 	log.Fatalf("Error creating reports handler: %v", err)
-	// }
+	log.Println("Starting reports handler setup...")
+	reportsRepo, err := d.NewReportsRepository(dsn)
+	if err != nil {
+		log.Fatalf("Error creating reports repository: %v", err)
+	}
+	log.Println("Reports repository created successfully.")
+	reportsService := s.NewReportsService(reportsRepo)
+	reportsHandler, err := h.NewReportsHandler(reportsService, logFile)
+	if err != nil {
+		log.Fatalf("Error creating reports handler: %v", err)
+	}
 
 	mux := u.NewCustomMux()
 
 	// Orders:
+	mux.HandleFunc("POST /orders/batch-process", orderHandler.BatchProcessOrders)
 	mux.HandleFunc("POST /orders", orderHandler.CreateOrder) // Create a new order
 	mux.HandleFunc("GET /orders", orderHandler.ListOrders)   // Retrieve all orders
 	mux.HandleFunc("GET /orders/numberOfOrderedItems", orderHandler.GetOrderedItemsCount)
@@ -99,6 +108,7 @@ func main() {
 	mux.HandleFunc("DELETE /inventory/{id}", invHandler.DeleteIngredient) // Delete an inventory item.
 
 	// // Aggregations
+	mux.HandleFunc("GET /reports/search", reportsHandler.HandleSearch)
 	// mux.HandleFunc("GET /reports/total-sales", reportsHandler.GetTotalSales)     // Get the total sales amount.
 	// mux.HandleFunc("GET /reports/popular-items", reportsHandler.GetPopularItems) // Get a list of popular menu items.
 

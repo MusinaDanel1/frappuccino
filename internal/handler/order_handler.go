@@ -231,3 +231,23 @@ func (h *OrderHandler) GetOrderedItemsCount(w http.ResponseWriter, r *http.Reque
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(counts)
 }
+
+func (h *OrderHandler) BatchProcessOrders(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		Orders []models.Order `json:"orders"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	response, err := h.orderService.ProcessBulkOrders(request.Orders)
+	if err != nil {
+		http.Error(w, "Failed to process orders", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
