@@ -119,7 +119,7 @@ func (repo *InventoryRepository) Close() error {
 
 func (r *InventoryRepository) CheckAndReserveInventory(tx *sql.Tx, items []models.OrderItem) (float64, bool, map[string]int) {
 	var total float64
-	inventoryUpdates := make(map[string]int) // Добавляем мапу для хранения обновлений
+	inventoryUpdates := make(map[string]int)
 
 	for _, item := range items {
 		if item.ProductID == "" {

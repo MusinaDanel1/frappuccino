@@ -6,6 +6,7 @@ import (
 	"frappuccino/internal/service"
 	"frappuccino/internal/utils"
 	"log/slog"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -40,8 +41,15 @@ func (h *ReportsHandler) HandleSearch(w http.ResponseWriter, r *http.Request) {
 		filters = []string{"all"}
 	}
 
-	minPrice, _ := strconv.ParseFloat(r.URL.Query().Get("minPrice"), 64)
-	maxPrice, _ := strconv.ParseFloat(r.URL.Query().Get("maxPrice"), 64)
+	minPrice := math.Inf(-1) // -∞, если параметр не указан
+	if minStr := r.URL.Query().Get("minPrice"); minStr != "" {
+		minPrice, _ = strconv.ParseFloat(minStr, 64)
+	}
+
+	maxPrice := math.Inf(1) // +∞, если параметр не указан
+	if maxStr := r.URL.Query().Get("maxPrice"); maxStr != "" {
+		maxPrice, _ = strconv.ParseFloat(maxStr, 64)
+	}
 
 	ctx := context.Background()
 	response, err := h.service.Search(ctx, query, filters, minPrice, maxPrice)
