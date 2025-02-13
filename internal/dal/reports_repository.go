@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/lib/pq"
-	_ "github.com/lib/pq"
 )
 
 type ReportRepository struct {

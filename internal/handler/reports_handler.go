@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"frappuccino/internal/check"
 	"frappuccino/internal/service"
 	"frappuccino/internal/utils"
 	"log/slog"
@@ -105,14 +106,33 @@ func (h *ReportHandler) HandleSearch(w http.ResponseWriter, r *http.Request) {
 		filters = []string{"all"}
 	}
 
+	if !check.Check_OrderItemheckFilters(w, r, filters) {
+		return
+	}
+
 	minPrice := math.Inf(-1)
 	if minStr := r.URL.Query().Get("minPrice"); minStr != "" {
-		minPrice, _ = strconv.ParseFloat(minStr, 64)
+		val, err := strconv.ParseFloat(minStr, 64)
+		if err != nil || val < 0 {
+			http.Error(w, "Invalid minPrice. Must be a non-negative number", http.StatusBadRequest)
+			return
+		}
+		minPrice = val
 	}
 
 	maxPrice := math.Inf(1)
 	if maxStr := r.URL.Query().Get("maxPrice"); maxStr != "" {
-		maxPrice, _ = strconv.ParseFloat(maxStr, 64)
+		val, err := strconv.ParseFloat(maxStr, 64)
+		if err != nil || val < 0 {
+			http.Error(w, "Invalid maxPrice. Must be a non-negative number", http.StatusBadRequest)
+			return
+		}
+		maxPrice = val
+	}
+
+	if minPrice > maxPrice {
+		http.Error(w, "minPrice cannot be greater than maxPrice", http.StatusBadRequest)
+		return
 	}
 
 	ctx := context.Background()

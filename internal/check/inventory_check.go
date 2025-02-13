@@ -19,6 +19,10 @@ func Check_Inventory(w http.ResponseWriter, r *http.Request, ingredient models.I
 		utils.SendError(w, utils.StatusBadRequest, "Empty ingredient unit in inventory items! Please specify (mg/g/kg/oz/lb/ml/l/dl/fl oz/pc/dozen/cup/tsp/tbsp/shots)!")
 		return false
 	}
+	if ingredient.Price <= 0 {
+		utils.SendError(w, utils.StatusBadRequest, "Invalid price in inventory items! Price should be more than 0!")
+		return false
+	}
 	if !CheckUnit(ingredient.Unit) {
 		utils.SendError(w, utils.StatusBadRequest, "Invalid unit of measurement! Please specify (mg/g/kg/oz/lb/ml/l/dl/fl oz/pc/dozen/cup/tsp/tbsp/shots)!")
 		return false

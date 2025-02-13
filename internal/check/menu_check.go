@@ -19,6 +19,10 @@ func Check_Menu(w http.ResponseWriter, r *http.Request, item models.MenuItem) bo
 		utils.SendError(w, utils.StatusBadRequest, "Menu item can't be less than 0 in menu items!")
 		return false
 	}
+	if len(item.Category) == 0 {
+		utils.SendError(w, utils.StatusBadRequest, "Empty menu category in menu items!")
+		return false
+	}
 	if len(item.Ingredients) == 0 {
 		utils.SendError(w, utils.StatusBadRequest, "Empty ingredient list in menu items!")
 		return false

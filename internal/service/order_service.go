@@ -86,7 +86,7 @@ func (s *OrderService) ProcessBulkOrders(orders []models.Order) (map[string]inte
 	var processedOrders []map[string]interface{}
 	var totalRevenue float64
 	accepted, rejected := 0, 0
-	var inventoryUpdates []map[string]interface{}
+	inventoryMap := make(map[int]*map[string]interface{}) // Map для агрегации обновлений
 
 	tx, err := s.orderRepo.BeginTransaction()
 	if err != nil {
@@ -130,19 +130,30 @@ func (s *OrderService) ProcessBulkOrders(orders []models.Order) (map[string]inte
 		totalRevenue += total
 		accepted++
 
-		// Формируем список обновлений инвентаря
+		// Агрегируем `inventory_updates` и корректно считаем `remaining`
 		for _, update := range updates {
-			inventoryUpdates = append(inventoryUpdates, map[string]interface{}{
-				"ingredient_id": update.IngredientID,
-				"name":          update.Name,
-				"quantity_used": update.QuantityUsed,
-				"remaining":     update.Remaining,
-			})
+			if existing, exists := inventoryMap[update.IngredientID]; exists {
+				(*existing)["quantity_used"] = (*existing)["quantity_used"].(int) + update.QuantityUsed
+				(*existing)["remaining"] = update.Remaining // Обновляем `remaining` на последнее значение
+			} else {
+				inventoryMap[update.IngredientID] = &map[string]interface{}{
+					"ingredient_id": update.IngredientID,
+					"name":          update.Name,
+					"quantity_used": update.QuantityUsed,
+					"remaining":     update.Remaining,
+				}
+			}
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	// Конвертируем map в slice
+	var inventoryUpdates []map[string]interface{}
+	for _, update := range inventoryMap {
+		inventoryUpdates = append(inventoryUpdates, *update)
 	}
 
 	return map[string]interface{}{

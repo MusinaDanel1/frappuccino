@@ -228,12 +228,9 @@ func (h *OrderHandler) GetOrderedItemsCount(w http.ResponseWriter, r *http.Reque
 	startDate := r.URL.Query().Get("startDate")
 	endDate := r.URL.Query().Get("endDate")
 
-	var startDatePtr, endDatePtr *string
-	if startDate != "" {
-		startDatePtr = &startDate
-	}
-	if endDate != "" {
-		endDatePtr = &endDate
+	startDatePtr, endDatePtr, ok := check.Check_Date(w, r, startDate, endDate)
+	if !ok {
+		return
 	}
 
 	counts, err := h.orderService.GetOrderedItemsCount(startDatePtr, endDatePtr)
@@ -254,6 +251,12 @@ func (h *OrderHandler) BatchProcessOrders(w http.ResponseWriter, r *http.Request
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
+	}
+
+	for _, order := range request.Orders {
+		if !check.Check_Orders(w, r, order) {
+			return
+		}
 	}
 
 	response, err := h.orderService.ProcessBulkOrders(request.Orders)

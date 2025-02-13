@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"frappuccino/models"
-
-	_ "github.com/lib/pq"
 )
 
 type InventoryRepository struct {
@@ -159,7 +157,7 @@ func (repo *InventoryRepository) Close() error {
 
 func (r *InventoryRepository) CheckAndReserveInventory(tx *sql.Tx, items []models.OrderItem) (float64, bool, []models.InventoryUpdate, error) {
 	var total float64
-	var inventoryUpdates []models.InventoryUpdate
+	inventoryMap := make(map[int]*models.InventoryUpdate) // Map для агрегации ингредиентов
 
 	for _, item := range items {
 		if item.ProductID == 0 {
@@ -200,14 +198,25 @@ func (r *InventoryRepository) CheckAndReserveInventory(tx *sql.Tx, items []model
 			return 0, false, nil, fmt.Errorf("error updating inventory: %w", err)
 		}
 
-		inventoryUpdates = append(inventoryUpdates, models.InventoryUpdate{
-			IngredientID: ingredientID,
-			Name:         name,
-			QuantityUsed: requiredQuantity,
-			Remaining:    availableQuantity - requiredQuantity,
-		})
+		// Агрегируем данные по ingredient_id
+		if update, exists := inventoryMap[ingredientID]; exists {
+			update.QuantityUsed += requiredQuantity // Увеличиваем использованное количество
+		} else {
+			inventoryMap[ingredientID] = &models.InventoryUpdate{
+				IngredientID: ingredientID,
+				Name:         name,
+				QuantityUsed: requiredQuantity,
+				Remaining:    availableQuantity - requiredQuantity, // Фиксируем остаток при первой встрече ингредиента
+			}
+		}
 
 		total += price * float64(item.Quantity)
+	}
+
+	// Конвертируем map в slice
+	var inventoryUpdates []models.InventoryUpdate
+	for _, update := range inventoryMap {
+		inventoryUpdates = append(inventoryUpdates, *update)
 	}
 
 	return total, true, inventoryUpdates, nil

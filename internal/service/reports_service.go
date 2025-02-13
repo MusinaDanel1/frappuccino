@@ -20,7 +20,7 @@ func NewReportService(repo *dal.ReportRepository) *ReportService {
 func (s *ReportService) GetTotalSales(ctx context.Context) (float64, error) {
 	totalSales, err := s.repo.GetTotalSales(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("Could not get total sales: %w", err)
+		return 0, fmt.Errorf("could not get total sales: %w", err)
 	}
 
 	return totalSales, nil
@@ -29,7 +29,7 @@ func (s *ReportService) GetTotalSales(ctx context.Context) (float64, error) {
 func (s *ReportService) GetPopularItems(ctx context.Context) ([]string, error) {
 	popularItems, err := s.repo.GetPopularItems(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("Could not get popular items: %w", err)
+		return nil, fmt.Errorf("could not get popular items: %w", err)
 	}
 
 	return popularItems, nil

@@ -50,3 +50,27 @@ for orders
         }
     ]
 }
+
+for batch process
+{
+    "orders": [
+        {
+            "customer_name": "Danel Mussina",
+            "items": [
+                {
+                    "product_id": 1,
+                    "quantity": 1
+                }
+            ]
+        },
+        {
+            "customer_name": "Bob",
+            "items": [
+                {
+                    "product_id": 2,
+                    "quantity": 1
+                }
+            ]
+        }
+    ]
+}
