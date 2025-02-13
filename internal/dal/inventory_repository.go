@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"frappuccino/models"
-	"strconv"
 
 	_ "github.com/lib/pq"
 )
@@ -15,36 +14,44 @@ type InventoryRepository struct {
 }
 
 type InventoryInterface interface {
-	Create(ingredient models.InventoryItem) error
-	GetByID(ingID string) (models.InventoryItem, error)
-	Update(ingredient models.InventoryItem, id string) error
-	Delete(ingID string) error
+	Create(ingredient models.InventoryItem) (int, error)
+	GetByID(ingID int) (models.InventoryItem, error)
+	Update(ingredient models.InventoryItem, id int) error
+	Delete(ingID int) error
 	List() ([]models.InventoryItem, error)
-	CheckAndReserveInventory(tx *sql.Tx, items []models.OrderItem) (float64, bool, map[string]int)
+	CheckAndReserveInventory(tx *sql.Tx, items []models.OrderItem) (float64, bool, []models.InventoryUpdate, error)
 }
 
-func NewInventoryRepository(dsn string) (*InventoryRepository, error) {
-	db, err := sql.Open("postgres", dsn)
-	if err != nil {
-		return nil, err
+func NewInventoryRepository(db *sql.DB) (*InventoryRepository, error) {
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("unable to connect to database: %v", err)
 	}
 
-	if err := db.Ping(); err != nil {
-		return nil, err
-	}
 	return &InventoryRepository{db: db}, nil
 }
 
-func (repo *InventoryRepository) Create(ingredient models.InventoryItem) error {
-	query := `INSERT INTO inventory (name, quantity, unit) VALUES ($1, $2, $3)`
-	_, err := repo.db.Exec(query, ingredient.Name, ingredient.Quantity, ingredient.Unit)
+func (repo *InventoryRepository) Create(ingredient models.InventoryItem) (int, error) {
+	var exists bool
+	queryCheck := `SELECT EXISTS(SELECT 1 FROM inventory WHERE name = $1)`
+	err := repo.db.QueryRow(queryCheck, ingredient.Name).Scan(&exists)
 	if err != nil {
-		return err
+		return 0, fmt.Errorf("failed to check ingredient existence: %w", err)
 	}
-	return nil
+	if exists {
+		return 0, errors.New("ingredient with this name already exists")
+	}
+
+	var id int
+	queryInsert := `INSERT INTO inventory (name, quantity, unit) VALUES ($1, $2, $3) RETURNING ingredient_id`
+	err = repo.db.QueryRow(queryInsert, ingredient.Name, ingredient.Quantity, ingredient.Unit).Scan(&id)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create ingredient: %w", err)
+	}
+
+	return id, nil
 }
 
-func (repo *InventoryRepository) GetByID(ingID string) (models.InventoryItem, error) {
+func (repo *InventoryRepository) GetByID(ingID int) (models.InventoryItem, error) {
 	var ingredient models.InventoryItem
 	query := `SELECT ingredient_id, name, quantity, unit FROM inventory WHERE ingredient_id = $1`
 	row := repo.db.QueryRow(query, ingID)
@@ -57,24 +64,57 @@ func (repo *InventoryRepository) GetByID(ingID string) (models.InventoryItem, er
 	return ingredient, nil
 }
 
-func (repo *InventoryRepository) Update(ingredient models.InventoryItem, id string) error {
-	query := `UPDATE inventory SET ingredient_id = $1, name = $2, quantity = $3, unit = $4 WHERE ingredient_id = $5`
-	result, err := repo.db.Exec(query, ingredient.IngredientID, ingredient.Name, ingredient.Quantity, ingredient.Unit, id)
+func (repo *InventoryRepository) Update(ingredient models.InventoryItem, id int) error {
+	tx, err := repo.db.Begin()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	var oldQuantity float64
+	queryGet := `SELECT quantity FROM inventory WHERE ingredient_id = $1`
+	err = tx.QueryRow(queryGet, id).Scan(&oldQuantity)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return errors.New("ingredient not found")
+		}
+		return fmt.Errorf("failed to get current quantity: %w", err)
+	}
+
+	queryUpdate := `UPDATE inventory SET name = $1, quantity = $2, unit = $3 WHERE ingredient_id = $4`
+	result, err := tx.Exec(queryUpdate, ingredient.Name, ingredient.Quantity, ingredient.Unit, id)
+	if err != nil {
+		return fmt.Errorf("failed to update inventory: %w", err)
 	}
 
 	numRows, err := result.RowsAffected()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get affected rows: %w", err)
 	}
 	if numRows == 0 {
 		return errors.New("ingredient not found")
 	}
+
+	quantityChange := ingredient.Quantity - oldQuantity
+	transactionType := "addition"
+	if quantityChange < 0 {
+		transactionType = "deduction"
+	}
+
+	queryInsert := `INSERT INTO inventory_transactions (ingredient_id, quantity_change, transaction_type) VALUES ($1, $2, $3)`
+	_, err = tx.Exec(queryInsert, id, quantityChange, transactionType)
+	if err != nil {
+		return fmt.Errorf("failed to insert transaction record: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
 	return nil
 }
 
-func (repo *InventoryRepository) Delete(ingID string) error {
+func (repo *InventoryRepository) Delete(ingID int) error {
 	query := `DELETE FROM inventory WHERE ingredient_id = $1`
 	result, err := repo.db.Exec(query, ingID)
 	if err != nil {
@@ -117,67 +157,58 @@ func (repo *InventoryRepository) Close() error {
 	return repo.db.Close()
 }
 
-func (r *InventoryRepository) CheckAndReserveInventory(tx *sql.Tx, items []models.OrderItem) (float64, bool, map[string]int) {
+func (r *InventoryRepository) CheckAndReserveInventory(tx *sql.Tx, items []models.OrderItem) (float64, bool, []models.InventoryUpdate, error) {
 	var total float64
-	inventoryUpdates := make(map[string]int)
+	var inventoryUpdates []models.InventoryUpdate
 
 	for _, item := range items {
-		if item.ProductID == "" {
-			fmt.Println("Error: ProductID is empty")
-			return 0, false, nil
-		}
-
-		menuItemID, err := strconv.Atoi(item.ProductID)
-		if err != nil {
-			fmt.Println("Invalid ProductID:", item.ProductID)
-			return 0, false, nil
+		if item.ProductID == 0 {
+			return 0, false, nil, fmt.Errorf("ProductID is empty")
 		}
 
 		var availableQuantity, ingredientQuantity int
 		var price float64
+		var ingredientID int
+		var name string
 
-		err = tx.QueryRow(`
-			SELECT i.quantity, mii.quantity AS ingredient_quantity, mi.price
+		err := tx.QueryRow(`
+			SELECT i.ingredient_id, i.name, i.quantity, mii.quantity AS ingredient_quantity, mi.price
 			FROM inventory i
 			JOIN menu_item_ingredients mii ON i.ingredient_id = mii.inventory_id
 			JOIN menu_items mi ON mi.menu_item_id = mii.menu_item_id
 			WHERE mi.menu_item_id = $1;
-		`, menuItemID).Scan(&availableQuantity, &ingredientQuantity, &price)
+		`, item.ProductID).Scan(&ingredientID, &name, &availableQuantity, &ingredientQuantity, &price)
 
 		if err == sql.ErrNoRows {
-			fmt.Println("No inventory found for ProductID:", menuItemID)
-			return 0, false, nil
+			return 0, false, nil, fmt.Errorf("no inventory found for ProductID: %d", item.ProductID)
 		} else if err != nil {
-			fmt.Println("Error fetching inventory:", err)
-			return 0, false, nil
+			return 0, false, nil, fmt.Errorf("error fetching inventory: %w", err)
 		}
 
-		fmt.Printf("ProductID: %d, Available: %d, Needed: %d\n", menuItemID, availableQuantity, item.Quantity*ingredientQuantity)
-
-		if availableQuantity < item.Quantity*ingredientQuantity {
-			fmt.Println("Not enough inventory")
-			return 0, false, nil
+		requiredQuantity := item.Quantity * ingredientQuantity
+		if availableQuantity < requiredQuantity {
+			return 0, false, nil, nil // Недостаточно ингредиентов
 		}
 
-		// Обновляем инвентарь
 		_, err = tx.Exec(`
 			UPDATE inventory 
-			SET quantity = inventory.quantity - (mii.quantity * $1)
-			FROM menu_item_ingredients mii
-			WHERE inventory.ingredient_id = mii.inventory_id
-			AND mii.menu_item_id = $2;
-		`, item.Quantity, menuItemID)
+			SET quantity = quantity - $1
+			WHERE ingredient_id = $2;
+		`, requiredQuantity, ingredientID)
 
 		if err != nil {
-			fmt.Println("Error updating inventory:", err)
-			return 0, false, nil
+			return 0, false, nil, fmt.Errorf("error updating inventory: %w", err)
 		}
 
-		// Добавляем обновленный ингредиент в `inventory_updates`
-		inventoryUpdates[item.ProductID] += item.Quantity * ingredientQuantity
+		inventoryUpdates = append(inventoryUpdates, models.InventoryUpdate{
+			IngredientID: ingredientID,
+			Name:         name,
+			QuantityUsed: requiredQuantity,
+			Remaining:    availableQuantity - requiredQuantity,
+		})
 
 		total += price * float64(item.Quantity)
 	}
 
-	return total, true, inventoryUpdates
+	return total, true, inventoryUpdates, nil
 }

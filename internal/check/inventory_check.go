@@ -4,14 +4,9 @@ import (
 	"frappuccino/internal/utils"
 	"frappuccino/models"
 	"net/http"
-	"regexp"
 )
 
 func Check_Inventory(w http.ResponseWriter, r *http.Request, ingredient models.InventoryItem) bool {
-	if ingredient.IngredientID == "" {
-		utils.SendError(w, utils.StatusBadRequest, "Empty ingredient ID in inventory items!")
-		return false
-	}
 	if ingredient.Name == "" {
 		utils.SendError(w, utils.StatusBadRequest, "Empty ingredient name in inventory items!")
 		return false
@@ -29,15 +24,6 @@ func Check_Inventory(w http.ResponseWriter, r *http.Request, ingredient models.I
 		return false
 	}
 	return true
-}
-
-func CheckIngredientID(id string) bool {
-	if id == "" {
-		return false
-	}
-	validIDPattern := `^[a-zA-Z0-9]{3,20}$`
-	matched, _ := regexp.MatchString(validIDPattern, id)
-	return matched
 }
 
 func CheckUnit(unit string) bool {

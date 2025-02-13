@@ -1,13 +1,13 @@
 -- Create the necessary ENUM types
 CREATE TYPE order_status AS ENUM('accepted','pending', 'processing', 'completed', 'cancelled','rejected');
-CREATE TYPE unit_of_measurement AS ENUM('mg', 'g', 'kg', 'oz', 'lb', 'ml', 'l', 'dl', 'fl', 'pc', 'dozen', 'cup', 'tsp', 'tbsp', 'shots');  -- Allow Pastry for non-standard units
+CREATE TYPE unit_of_measurement AS ENUM('mg', 'g', 'kg', 'oz', 'lb', 'ml', 'l', 'dl', 'fl', 'pc', 'dozen', 'cup', 'tsp', 'tbsp', 'shots'); 
 CREATE TYPE type_of_transaction AS ENUM('addition', 'deduction');
 
 -- Create Orders table
 CREATE TABLE orders(
     order_id SERIAL PRIMARY KEY,
     customer_name VARCHAR(255) NOT NULL,
-    special_instructions TEXT[],
+    special_instructions JSONB,
     total_amount NUMERIC DEFAULT 0 CHECK(total_amount >= 0),
     status order_status DEFAULT 'pending',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -17,12 +17,11 @@ CREATE TABLE orders(
 -- Create Menu Items table
 CREATE TABLE menu_items(
     menu_item_id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
+    name VARCHAR(255) NOT NULL UNIQUE,
     description TEXT,
     price NUMERIC NOT NULL CHECK(price > 0),
     categories TEXT[],
-    allergens TEXT[],
-    metadata JSONB
+    allergens TEXT[]
 );
 
 -- Create Inventory table
@@ -40,8 +39,7 @@ CREATE TABLE order_items(
     order_id INT REFERENCES orders(order_id) ON DELETE CASCADE,
     menu_item_id INT REFERENCES menu_items(menu_item_id) ON DELETE CASCADE,
     quantity INT NOT NULL CHECK(quantity > 0),
-    price_at_order NUMERIC NOT NULL CHECK(price_at_order > 0),
-    customization_options JSONB
+    price_at_order NUMERIC NOT NULL CHECK(price_at_order > 0)
 );
 
 -- Create Menu Item Ingredients table
@@ -58,7 +56,7 @@ CREATE TABLE inventory_transactions(
     ingredient_id INT REFERENCES inventory(ingredient_id) ON DELETE CASCADE,
     quantity_change NUMERIC NOT NULL,
     transaction_type type_of_transaction NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    transaction_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create Order Status History table
@@ -81,40 +79,40 @@ CREATE TABLE price_history(
 
 -- Insert sample data into inventory
 INSERT INTO inventory(name, quantity, unit, last_updated) VALUES
-    ('Coffee Beans', 5500, 'g', '2024-01-01'),
-    ('Muffin', 3000, 'pc', '2024-01-01'),  
-    ('Milk', 1000, 'l', '2024-01-01'),
-    ('Sugar', 1000, 'g', '2024-01-01'),
-    ('Flour', 10000, 'g', '2024-01-01'),
-    ('Eggs', 500, 'pc', '2024-01-01'),
-    ('Chocolate', 3000, 'g', '2024-01-01'),
-    ('Vanilla Extract', 200, 'ml', '2024-01-01'),
-    ('Butter', 2000, 'g', '2024-01-01'),
-    ('Cinnamon', 500, 'g', '2024-01-01'),
-    ('Salt', 1000, 'g', '2024-01-01'),
-    ('Bananas', 150, 'pc', '2024-01-01'),
-    ('Strawberries', 300, 'pc', '2024-01-01'),
-    ('Blueberries', 200, 'pc', '2024-01-01'),
-    ('Lemons', 100, 'pc', '2024-01-01'),
-    ('Oranges', 120, 'pc', '2024-01-01'),
-    ('Yeast', 100, 'g', '2024-01-01'),
-    ('Baking Powder', 300, 'g', '2024-01-01'),
-    ('Cream', 100, 'l', '2024-01-01'),
-    ('Honey', 500, 'g', '2024-01-01'),
-    ('Whipped Cream', 50, 'l', '2024-01-01');
+    ('Coffee Beans', 5500, 'g', '2024-01-01 08:00:00'),
+    ('Muffin', 3000, 'pc', '2024-01-01 09:00:00'),  
+    ('Milk', 1000, 'l', '2024-01-01 09:30:00'),
+    ('Sugar', 1000, 'g', '2024-01-01 10:00:00'),
+    ('Flour', 10000, 'g', '2024-01-01 11:00:00'),
+    ('Eggs', 500, 'pc', '2024-01-01 12:00:00'),
+    ('Chocolate', 3000, 'g', '2024-01-01 13:00:00'),
+    ('Vanilla Extract', 200, 'ml', '2024-01-01 14:00:00'),
+    ('Butter', 2000, 'g', '2024-01-01 15:00:00'),
+    ('Cinnamon', 500, 'g', '2024-01-01 16:00:00'),
+    ('Salt', 1000, 'g', '2024-01-01 17:00:00'),
+    ('Bananas', 150, 'pc', '2024-01-01 18:00:00'),
+    ('Strawberries', 300, 'pc', '2024-01-01 19:00:00'),
+    ('Blueberries', 200, 'pc', '2024-01-01 20:00:00'),
+    ('Lemons', 100, 'pc', '2024-01-01 21:00:00'),
+    ('Oranges', 120, 'pc', '2024-01-01 22:00:00'),
+    ('Yeast', 100, 'g', '2024-01-01 23:00:00'),
+    ('Baking Powder', 300, 'g', '2024-01-01 00:00:00'),
+    ('Cream', 100, 'l', '2024-01-01 01:00:00'),
+    ('Honey', 500, 'g', '2024-01-01 02:00:00'),
+    ('Whipped Cream', 50, 'l', '2024-01-01 03:00:00');
 
 -- Insert sample data into menu_items
-INSERT INTO menu_items(name, price, categories) VALUES 
-    ('Espresso', 2.5, ARRAY['Beverage']),
-    ('Latte', 3.5, ARRAY['Beverage']),
-    ('Cappuccino', 3.0, ARRAY['Beverage']),
-    ('Americano', 2.0, ARRAY['Beverage']),
-    ('Croissant', 2.5, ARRAY['Pastry']),
-    ('Muffin', 3.0, ARRAY['Pastry']),
-    ('Cheesecake', 4.5, ARRAY['Dessert']),
-    ('Brownie', 3.5, ARRAY['Dessert']),
-    ('Bagel', 2.0, ARRAY['Pastry']),
-    ('Pancake', 3.5, ARRAY['Breakfast']);
+INSERT INTO menu_items(name, description, price, categories, allergens) VALUES
+    ('Espresso', 'Strong black coffee', 2.5, ARRAY['Beverage'], ARRAY['None']),
+    ('Latte', 'Coffee with steamed milk', 3.5, ARRAY['Beverage'], ARRAY['Dairy']),
+    ('Cappuccino', 'Espresso with milk foam', 3.0, ARRAY['Beverage'], ARRAY['Dairy']),
+    ('Americano', 'Espresso with hot water', 2.0, ARRAY['Beverage'], ARRAY['None']),
+    ('Croissant', 'Flaky pastry', 2.5, ARRAY['Pastry'], ARRAY['Gluten', 'Dairy']),
+    ('Muffin', 'Sweet muffin', 3.0, ARRAY['Pastry'], ARRAY['Gluten', 'Dairy']),
+    ('Cheesecake', 'Creamy cheesecake', 4.5, ARRAY['Dessert'], ARRAY['Dairy']),
+    ('Brownie', 'Chocolate brownie', 3.5, ARRAY['Dessert'], ARRAY['Gluten', 'Dairy']),
+    ('Bagel', 'Toasted bagel', 2.0, ARRAY['Pastry'], ARRAY['Gluten']),
+    ('Pancake', 'Fluffy pancake', 3.5, ARRAY['Breakfast'], ARRAY['Gluten', 'Dairy']);
 
 -- Insert sample data into menu_item_ingredients
 INSERT INTO menu_item_ingredients(menu_item_id, inventory_id, quantity) VALUES
@@ -138,12 +136,12 @@ INSERT INTO menu_item_ingredients(menu_item_id, inventory_id, quantity) VALUES
     (10, 18, 100);
 
 -- Insert sample data into orders
-INSERT INTO orders(customer_name, total_amount, status, created_at) VALUES
-    ('Alice', 15.5, 'completed', '2024-12-01'),
-    ('Bob', 12.0, 'pending', '2024-12-02'),
-    ('Charlie', 18.0, 'cancelled', '2024-12-03'),
-    ('Diana', 20.5, 'completed', '2024-12-04'),
-    ('Eve', 22.0, 'completed', '2024-12-05');
+INSERT INTO orders (customer_name, special_instructions, total_amount, status, created_at, updated_at) VALUES
+    ('Alice', '["No sugar", "Extra shot"]'::jsonb, 15.5, 'completed', '2024-12-01 10:00:00', '2024-12-01 10:15:00'),
+    ('Bob', '["No dairy"]'::jsonb, 12.0, 'pending', '2024-12-02 12:00:00', '2024-12-02 12:05:00'),
+    ('Charlie', '["Gluten free"]'::jsonb, 18.0, 'cancelled', '2024-12-03 14:00:00', '2024-12-03 14:10:00'),
+    ('Diana', '["Low fat milk"]'::jsonb, 20.5, 'completed', '2024-12-04 16:00:00', '2024-12-04 16:10:00'),
+    ('Eve', '["Extra vanilla", "No foam"]'::jsonb, 22.0, 'completed', '2024-12-05 08:00:00', '2024-12-05 08:10:00');
 
 -- Insert sample data into order_items
 INSERT INTO order_items(order_id, menu_item_id, quantity, price_at_order) VALUES
@@ -155,29 +153,39 @@ INSERT INTO order_items(order_id, menu_item_id, quantity, price_at_order) VALUES
 
 -- Insert sample data into order_status_history
 INSERT INTO order_status_history(order_id, status, changed_at) VALUES
-    (1, 'pending', '2024-12-01'),
-    (1, 'completed', '2024-12-01'),
-    (2, 'pending', '2024-12-02'),
-    (2, 'completed', '2024-12-02'),
-    (3, 'pending', '2024-12-03'),
-    (3, 'cancelled', '2024-12-03');
+    (1, 'pending', '2024-12-01 10:00:00'),
+    (1, 'completed', '2024-12-01 10:15:00'),
+    (2, 'pending', '2024-12-02 12:00:00'),
+    (2, 'completed', '2024-12-02 12:05:00'),
+    (3, 'pending', '2024-12-03 14:00:00'),
+    (3, 'cancelled', '2024-12-03 14:10:00');
 
--- Create a trigger to ensure valid status transitions (pending -> processing -> completed/cancelled)
-CREATE OR REPLACE FUNCTION validate_order_status_change() RETURNS TRIGGER AS $$
-BEGIN
-    IF NEW.status = 'processing' AND OLD.status = 'completed' THEN
-        RAISE EXCEPTION 'Invalid status transition from completed to processing';
-    ELSIF NEW.status = 'completed' AND OLD.status != 'processing' THEN
-        RAISE EXCEPTION 'Order must be in processing before it can be completed';
-    ELSIF NEW.status = 'cancelled' AND OLD.status != 'pending' THEN
-        RAISE EXCEPTION 'Order can only be cancelled if it is still pending';
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+-- Insert sampledata into price_history
+INSERT INTO price_history(menu_item_id, old_price, new_price, changed_at) VALUES
+    (1, 2.0, 2.5, '2024-12-01 09:00:00'),
+    (2, 3.0, 3.5, '2024-12-02 11:00:00'),
+    (3, 2.5, 3.0, '2024-12-03 13:00:00'),
+    (4, 1.8, 2.0, '2024-12-04 15:00:00'),
+    (5, 2.0, 2.5, '2024-12-05 17:00:00');
 
--- Create a trigger on orders table to call this function
-CREATE TRIGGER validate_order_status
-BEFORE UPDATE ON orders
-FOR EACH ROW
-EXECUTE FUNCTION validate_order_status_change();
+-- Insert sample data into inventory_transactions
+INSERT INTO inventory_transactions (ingredient_id, quantity_change, transaction_type, transaction_date)
+VALUES
+(1, 10, 'deduction', '2025-02-12 10:05:00'),
+(2, 500, 'addition', '2025-02-12 12:00:00'),
+(3, 5, 'deduction', '2025-02-12 14:00:00'),
+(1, 20, 'deduction', '2025-02-12 15:30:00'),
+(4, 300, 'addition', '2025-02-12 16:00:00');
+
+-- Index for fast inventory lookup by ID
+CREATE INDEX idx_inventory_id ON inventory (ingredient_id);
+
+-- Index for fast menu items lookup by ID
+CREATE INDEX idx_menu_items_id ON menu_items (menu_item_id);
+
+-- Index for fast orders lookup by ID
+CREATE INDEX idx_orders_id ON orders (order_id);
+
+
+
+

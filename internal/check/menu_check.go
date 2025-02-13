@@ -7,10 +7,6 @@ import (
 )
 
 func Check_Menu(w http.ResponseWriter, r *http.Request, item models.MenuItem) bool {
-	if item.ID == "" {
-		utils.SendError(w, utils.StatusBadRequest, "Empty menu ID in menu items!")
-		return false
-	}
 	if item.Name == "" {
 		utils.SendError(w, utils.StatusBadRequest, "Empty menu name in menu items!")
 		return false

@@ -9,8 +9,8 @@ import (
 	"frappuccino/models"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
-	"time"
 )
 
 type OrderHandler struct {
@@ -48,17 +48,25 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.orderService.CreateOrder(order); err != nil {
-		utils.SendError(w, utils.StatusBadRequest, "Failed to create menu item!")
-		slog.Error("Failed to create menu item!", slog.Any("error", err))
-		h.logger.Error("Failed to create menu item!", slog.Any("error", err))
+	if err := h.orderService.CreateOrder(&order); err != nil {
+		h.logger.Error("Failed to create order!", slog.Any("error", err))
+
+		switch {
+		case strings.Contains(err.Error(), "insufficient ingredient"):
+			utils.SendError(w, utils.StatusBadRequest, err.Error())
+		case strings.Contains(err.Error(), "order already exists"):
+			utils.SendError(w, utils.StatusConflict, err.Error())
+		default:
+			utils.SendError(w, utils.StatusInternalServerError, "Failed to create order.")
+		}
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(order)
 	slog.Info("Order created", "ID", order.ID)
-	h.logger.Info("Order created", slog.String("ID", order.ID))
+	h.logger.Info("Order created", slog.Int("ID", order.ID))
 }
 
 func (h *OrderHandler) ListOrders(w http.ResponseWriter, r *http.Request) {
@@ -87,7 +95,12 @@ func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orderID := r.URL.Path[len("/orders/"):]
+	orderIDStr := r.URL.Path[len("/orders/"):]
+	orderID, err := strconv.Atoi(orderIDStr)
+	if err != nil {
+		http.Error(w, "Invalid inventory ID", http.StatusBadRequest)
+		return
+	}
 
 	order, err := h.orderService.GetByID(orderID)
 	if err != nil {
@@ -100,7 +113,7 @@ func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(order)
 	slog.Info("Got order by its id", "ID", orderID)
-	h.logger.Info("Got order by its id", slog.String("ID", order.ID))
+	h.logger.Info("Got order by its id", slog.Int("ID", order.ID))
 }
 
 func (h *OrderHandler) UpdateOrder(w http.ResponseWriter, r *http.Request) {
@@ -108,7 +121,12 @@ func (h *OrderHandler) UpdateOrder(w http.ResponseWriter, r *http.Request) {
 		utils.SendError(w, utils.StatusMethodNotAllowed, "Method not allowed!")
 		return
 	}
-	orderID := r.URL.Path[len("/orders/"):]
+	orderIDStr := r.URL.Path[len("/orders/"):]
+	orderID, err := strconv.Atoi(orderIDStr)
+	if err != nil {
+		http.Error(w, "Invalid inventory ID", http.StatusBadRequest)
+		return
+	}
 	existingOrder, err := h.orderService.GetByID(orderID)
 	if err != nil {
 		utils.SendError(w, utils.StatusNotFound, "Order doesn't exist")
@@ -116,10 +134,10 @@ func (h *OrderHandler) UpdateOrder(w http.ResponseWriter, r *http.Request) {
 		h.logger.Error("Order doesn't exist", slog.Any("error", err))
 		return
 	}
-	if existingOrder.Status == "closed" {
-		utils.SendError(w, utils.StatusConflict, "Cannot update a close order!")
-		slog.Warn("Attempted to update a close order", "ID", orderID)
-		h.logger.Error("Attempted to update a close order", slog.Any("error", err))
+	if existingOrder.Status == "completed" {
+		utils.SendError(w, utils.StatusConflict, "Cannot update a completed order!")
+		slog.Warn("Attempted to update a completed order", "ID", orderID)
+		h.logger.Error("Attempted to update a completed order", slog.Any("error", err))
 		return
 	}
 	var order models.Order
@@ -131,22 +149,10 @@ func (h *OrderHandler) UpdateOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	order.ID = orderID
-	changeHistory := h.orderService.CollectOrderChanges(existingOrder, order)
-	if len(changeHistory) > 0 {
-		if err := h.orderService.RecordChangeHistory(orderID, changeHistory); err != nil {
-			utils.SendError(w, utils.StatusInternalServerError, "Failed to record change history!")
-			slog.Error("Failed to record change hidtory!", slog.Any("error", err))
-			h.logger.Error("Failed to record change hidtory!", slog.Any("error", err))
-			return
-		}
-	}
 	if order.Status == "" {
 		order.Status = existingOrder.Status
 	}
 
-	if order.CreatedAt == "" {
-		order.CreatedAt = time.Now().Format(time.RFC3339)
-	}
 	if err := h.orderService.Update(order, orderID); err != nil {
 		utils.SendError(w, utils.StatusInternalServerError, "Failed to update order!")
 		slog.Error("Failed to update order!", slog.Any("error", err))
@@ -155,8 +161,9 @@ func (h *OrderHandler) UpdateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusNoContent)
+	json.NewEncoder(w).Encode(order)
 	slog.Info("Order updated", "ID", orderID)
-	h.logger.Info("Order updated", slog.String("ID", order.ID))
+	h.logger.Info("Order updated", slog.Int("ID", order.ID))
 }
 
 func (h *OrderHandler) DeleteOrder(w http.ResponseWriter, r *http.Request) {
@@ -165,7 +172,12 @@ func (h *OrderHandler) DeleteOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orderID := r.URL.Path[len("/orders/"):]
+	orderIDStr := r.URL.Path[len("/orders/"):]
+	orderID, err := strconv.Atoi(orderIDStr)
+	if err != nil {
+		http.Error(w, "Invalid inventory ID", http.StatusBadRequest)
+		return
+	}
 
 	if err := h.orderService.Delete(orderID); err != nil {
 		utils.SendError(w, utils.StatusInternalServerError, "Failed delete order!")
@@ -176,14 +188,19 @@ func (h *OrderHandler) DeleteOrder(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusNoContent)
 	slog.Info("Order deleted", "ID", orderID)
-	h.logger.Info("Order deleted", slog.String("ID", orderID))
+	h.logger.Info("Order deleted", slog.Int("ID", orderID))
 }
 
 func (h *OrderHandler) CloseOrder(w http.ResponseWriter, r *http.Request) {
 	if !strings.HasPrefix(r.URL.Path, "/orders/") || !strings.HasSuffix(r.URL.Path, "/close") {
 		return
 	}
-	orderID := r.URL.Path[len("/orders/") : len(r.URL.Path)-len("/close")]
+	orderIDStr := r.URL.Path[len("/orders/") : len(r.URL.Path)-len("/close")]
+	orderID, err := strconv.Atoi(orderIDStr)
+	if err != nil {
+		http.Error(w, "Invalid inventory ID", http.StatusBadRequest)
+		return
+	}
 	fmt.Println(orderID)
 
 	order, err := h.orderService.GetByID(orderID)
@@ -203,15 +220,14 @@ func (h *OrderHandler) CloseOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	slog.Info("Order closed", "ID", orderID)
-	h.logger.Info("Order closed", slog.String("ID", orderID))
+	slog.Info("Order completed", "ID", orderID)
+	h.logger.Info("Order completed", slog.Int("ID", orderID))
 }
 
 func (h *OrderHandler) GetOrderedItemsCount(w http.ResponseWriter, r *http.Request) {
 	startDate := r.URL.Query().Get("startDate")
 	endDate := r.URL.Query().Get("endDate")
 
-	// Если параметры пустые, передаём nil
 	var startDatePtr, endDatePtr *string
 	if startDate != "" {
 		startDatePtr = &startDate
@@ -220,14 +236,12 @@ func (h *OrderHandler) GetOrderedItemsCount(w http.ResponseWriter, r *http.Reque
 		endDatePtr = &endDate
 	}
 
-	// Получаем данные
 	counts, err := h.orderService.GetOrderedItemsCount(startDatePtr, endDatePtr)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to get ordered items count: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	// Возвращаем JSON-ответ
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(counts)
 }

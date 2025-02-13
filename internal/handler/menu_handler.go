@@ -8,6 +8,8 @@ import (
 	"frappuccino/models"
 	"log/slog"
 	"net/http"
+	"strconv"
+	"strings"
 )
 
 type MenuHandler struct {
@@ -42,7 +44,11 @@ func (h *MenuHandler) CreateMenuItem(w http.ResponseWriter, r *http.Request) {
 	if !check.Check_Menu(w, r, item) {
 		return
 	}
-	if err := h.menuService.CreateMenuItem(item); err != nil {
+	if err := h.menuService.CreateMenuItem(&item); err != nil {
+		if strings.Contains(err.Error(), "menu item already exists") {
+			utils.SendError(w, utils.StatusConflict, "Menu item with this name already exists!")
+			return
+		}
 		utils.SendError(w, utils.StatusBadRequest, "Failed to create the menu item!")
 		slog.Error("Failed to create the menu item!", slog.Any("error", err))
 		h.logger.Error("Failed to create the menu item!", slog.Any("error", err))
@@ -52,14 +58,15 @@ func (h *MenuHandler) CreateMenuItem(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(item)
-	h.logger.Info("Menu item created", slog.String("ID", item.ID))
-	slog.Info("Menu item created", "ID", item.ID)
+	h.logger.Info("Menu item created", slog.Int("MenuItemID", item.ID))
+	slog.Info("Menu item created", "MenuItemID", item.ID)
 }
 
 func (h *MenuHandler) LissMenu(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		utils.SendError(w, utils.StatusMethodNotAllowed, "Method not allowed!")
 	}
+
 	ingredients, err := h.menuService.List()
 	if err != nil {
 		utils.SendError(w, utils.StatusInternalServerError, "Failed list menu items!")
@@ -81,7 +88,12 @@ func (h *MenuHandler) GetMenuItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	itemID := r.URL.Path[len("/menu/"):]
+	itemIDStr := r.URL.Path[len("/menu/"):]
+	itemID, err := strconv.Atoi(itemIDStr)
+	if err != nil {
+		http.Error(w, "Invalid inventory ID", http.StatusBadRequest)
+		return
+	}
 	item, err := h.menuService.GetByID(itemID)
 	if err != nil {
 		utils.SendError(w, utils.StatusNotFound, "Menu item doesn't exist or unreachable!")
@@ -91,7 +103,7 @@ func (h *MenuHandler) GetMenuItem(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(item)
-	h.logger.Info("Got menu item by its id", slog.String("ID", itemID))
+	h.logger.Info("Got menu item by its id", slog.Int("ID", itemID))
 	slog.Info("Got menu item by its id", "ID", itemID)
 }
 
@@ -100,7 +112,12 @@ func (h *MenuHandler) UpdateMenuItem(w http.ResponseWriter, r *http.Request) {
 		utils.SendError(w, utils.StatusMethodNotAllowed, "Method not allowed!")
 		return
 	}
-	itemID := r.URL.Path[len("/menu/"):]
+	itemIDStr := r.URL.Path[len("/menu/"):]
+	itemID, err := strconv.Atoi(itemIDStr)
+	if err != nil {
+		http.Error(w, "Invalid inventory ID", http.StatusBadRequest)
+		return
+	}
 	var item models.MenuItem
 	if err := json.NewDecoder(r.Body).Decode(&item); err != nil {
 		utils.SendError(w, utils.StatusConflict, "Failed decode menu item to struct!")
@@ -119,7 +136,7 @@ func (h *MenuHandler) UpdateMenuItem(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusNoContent)
-	h.logger.Info("Menu item updated", slog.String("ID", itemID))
+	h.logger.Info("Menu item updated", slog.Int("ID", itemID))
 	slog.Info("Menu item updated", "ID", itemID)
 }
 
@@ -128,7 +145,12 @@ func (h *MenuHandler) DeleteMenuItem(w http.ResponseWriter, r *http.Request) {
 		utils.SendError(w, utils.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
-	itemID := r.URL.Path[len("/menu/"):]
+	itemIDStr := r.URL.Path[len("/menu/"):]
+	itemID, err := strconv.Atoi(itemIDStr)
+	if err != nil {
+		http.Error(w, "Invalid inventory ID", http.StatusBadRequest)
+		return
+	}
 	if err := h.menuService.Delete(itemID); err != nil {
 		utils.SendError(w, utils.StatusInternalServerError, "Failed delete menu item.")
 		slog.Error("Failed delete menu item.", slog.Any("error", err))
@@ -137,6 +159,6 @@ func (h *MenuHandler) DeleteMenuItem(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusNoContent)
-	h.logger.Info("Menu item deleted", slog.String("ID", itemID))
+	h.logger.Info("Menu item deleted", slog.Int("ID", itemID))
 	slog.Info("Menu item deleted", "ID", itemID)
 }

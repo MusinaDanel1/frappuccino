@@ -13,5 +13,5 @@ type SearchResult struct {
 type SearchResponse struct {
 	MenuItems    []SearchResult `json:"menu_items"`
 	Orders       []SearchResult `json:"orders"`
-	TotalMatches int            `json:"total_matches"`
+	TotalMatches int            `json:"total matches"`
 }

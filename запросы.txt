@@ -1,0 +1,52 @@
+for inventory
+{
+  "name": "flaflas1",
+  "quantity": 55009,
+  "unit": "g",
+  "price":12
+}
+
+for menu
+{
+    "name": "Cappuccino11233",
+    "description": "Coffee with333",
+    "price": 2583,
+    "category": [
+        "Beverages3"
+    ],
+    "allergens": [
+        "milk3",
+        "gluten3"
+    ],
+    "ingredients": [
+        {
+            "ingredient_id": 3,
+            "quantity": 3
+        },
+        {
+            "ingredient_id": 2,
+            "quantity": 1
+        }
+    ]
+}
+
+for orders
+{
+    "customer_name": "Danel Mussina",
+    "total_amount": 35,
+    "special_instructions": [
+        "Without onion",
+        "Spice sauce"
+    ],
+    "status": "completed",
+    "items": [
+        {
+            "product_id": 2,
+            "quantity": 1
+        },
+        {
+            "product_id": 1,
+            "quantity": 1
+        }
+    ]
+}

@@ -24,10 +24,6 @@ func Check_Orders(w http.ResponseWriter, r *http.Request, orders models.Order) b
 }
 
 func Check_OrderItem(w http.ResponseWriter, r *http.Request, orderItem models.OrderItem) bool {
-	if orderItem.ProductID == "" {
-		utils.SendError(w, utils.StatusBadRequest, "Empty productID in inventory items!")
-		return false
-	}
 	if orderItem.Quantity <= 0 {
 		utils.SendError(w, utils.StatusBadRequest, "Invalid quantity in items! Quantity should be more than 0!")
 		return false

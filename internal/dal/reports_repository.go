@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/lib/pq"
+	_ "github.com/lib/pq"
 )
 
 type ReportRepository struct {
@@ -16,18 +17,68 @@ type ReportRepository struct {
 }
 
 type ReportInterface interface {
+	GetTotalSales(ctx context.Context) (float64, error)
+	GetPopularItems(ctx context.Context) ([]string, error)
 	FullTextSearch(ctx context.Context, query string, filters []string, minPrice, maxPrice float64) (*models.SearchResponse, error)
 }
 
-func NewReportsRepository(dsn string) (*ReportRepository, error) {
-	db, err := sql.Open("postgres", dsn)
-	if err != nil {
-		return nil, err
-	}
+func NewReportRepository(db *sql.DB) (*ReportRepository, error) {
 	if err := db.Ping(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to connect to database: %v", err)
 	}
+
 	return &ReportRepository{db: db}, nil
+}
+
+func (s *ReportRepository) GetTotalSales(ctx context.Context) (float64, error) {
+	query := `
+	SELECT o.quantity, mi.price
+	FROM orders o
+	JOIN menu_items mi ON o.product_id = mi.menu_item_id`
+
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return 0, fmt.Errorf("could not load orders: %w", err)
+	}
+	defer rows.Close()
+
+	var totalSales float64
+	for rows.Next() {
+		var quantity int
+		var price float64
+		if err := rows.Scan(&quantity, &price); err != nil {
+			return 0, fmt.Errorf("could not scan order row: %w", err)
+		}
+		totalSales += float64(quantity) * price
+	}
+
+	return totalSales, nil
+}
+
+func (s *ReportRepository) GetPopularItems(ctx context.Context) ([]string, error) {
+	query := `
+	SELECT product_id 
+	FROM orders 
+	GROUP BY product_id 
+	ORDER BY SUM(quantity) DESC 
+	LIMIT 1`
+
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("could not load orders: %w", err)
+	}
+	defer rows.Close()
+
+	var popularItems []string
+	for rows.Next() {
+		var productID string
+		if err := rows.Scan(&productID); err != nil {
+			return nil, fmt.Errorf("could not scan order row: %w", err)
+		}
+		popularItems = append(popularItems, productID)
+	}
+
+	return popularItems, nil
 }
 
 func (r *ReportRepository) FullTextSearch(ctx context.Context, query string, filters []string, minPrice, maxPrice float64) (*models.SearchResponse, error) {
@@ -39,7 +90,6 @@ func (r *ReportRepository) FullTextSearch(ctx context.Context, query string, fil
 	log.Println("minPrice:", minPrice)
 	log.Println("maxPrice:", maxPrice)
 
-	// Преобразуем запрос в phraseto_tsquery
 	tsxQuery := fmt.Sprintf("plainto_tsquery('simple', %s)", pq.QuoteLiteral(strings.ReplaceAll(query, " ", " <-> ")))
 
 	if contains(filters, "menu") || contains(filters, "all") {
@@ -118,4 +168,27 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
+}
+
+func (r *ReportRepository) GetOrderedItems(ctx context.Context) ([]models.Order, error) {
+	query := `
+	SELECT order_id, customer_name, total_amount, status, created_at
+	FROM orders`
+
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("could not fetch ordered items: %w", err)
+	}
+	defer rows.Close()
+
+	var orders []models.Order
+	for rows.Next() {
+		var order models.Order
+		if err := rows.Scan(&order.ID, &order.CustomerName, &order.TotalAmount, &order.Status, &order.CreatedAt); err != nil {
+			return nil, fmt.Errorf("could not scan order row: %w", err)
+		}
+		orders = append(orders, order)
+	}
+
+	return orders, nil
 }

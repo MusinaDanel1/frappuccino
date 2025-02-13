@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 )
@@ -54,6 +55,21 @@ func createFileIfNotExist(filePath, defaultContent string) {
 func CheckPort(port string) bool {
 	portNum, err := strconv.Atoi(port)
 	return err == nil && portNum > 1024 && portNum <= 65535
+}
+
+// ParsePaginationParams парсит параметры page и pageSize, задавая значения по умолчанию
+func ParsePaginationParams(queryParams url.Values) (int, int) {
+	page, err := strconv.Atoi(queryParams.Get("page"))
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	pageSize, err := strconv.Atoi(queryParams.Get("pageSize"))
+	if err != nil || pageSize < 1 {
+		pageSize = 10
+	}
+
+	return page, pageSize
 }
 
 func PrintHelp() {

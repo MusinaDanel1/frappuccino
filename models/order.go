@@ -1,19 +1,21 @@
 package models
 
+import "time"
+
 type Order struct {
-	ID                  string      `json:"order_id"`
+	ID                  int         `json:"order_id"`
 	CustomerName        string      `json:"customer_name"`
 	TotalAmount         float64     `json:"total_amount"`
 	Items               []OrderItem `json:"items"`
 	SpecialInstructions []string    `json:"special_instructions"`
 	Status              string      `json:"status"`
-	CreatedAt           string      `json:"created_at"`
+	CreatedAt           time.Time   `json:"created_at"`
 	UpdatedAt           string      `json:"update_at"`
 }
 
 type OrderItem struct {
-	ProductID string `json:"product_id"`
-	Quantity  int    `json:"quantity"`
+	ProductID int `json:"product_id"`
+	Quantity  int `json:"quantity"`
 }
 
 type ChangeHistory struct {
