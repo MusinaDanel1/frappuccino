@@ -70,7 +70,7 @@ func Check_Date(w http.ResponseWriter, r *http.Request, startDate, endDate strin
 }
 
 func Check_OrderItemheckFilters(w http.ResponseWriter, r *http.Request, filters []string) bool {
-	validFilters := map[string]bool{"menu": true, "order": true, "all": true}
+	validFilters := map[string]bool{"menu": true, "orders": true, "all": true}
 
 	for _, f := range filters {
 		if !validFilters[f] {

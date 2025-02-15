@@ -83,6 +83,7 @@ func (s *ReportRepository) GetPopularItems(ctx context.Context) ([]string, error
 func (r *ReportRepository) FullTextSearch(ctx context.Context, query string, filters []string, minPrice, maxPrice float64) (*models.SearchResponse, error) {
 	var menuItems []models.SearchResult
 	var orders []models.SearchResult
+	var inventoryItems []models.SearchResult
 
 	log.Println("query:", query)
 	log.Println("filters:", filters)
@@ -152,11 +153,41 @@ func (r *ReportRepository) FullTextSearch(ctx context.Context, query string, fil
 			orders = append(orders, order)
 		}
 	}
+	if contains(filters, "all") {
+		log.Println("Executing inventoryQuery with query:", query)
+		inventoryQuery := `
+			SELECT ingredient_id, name, quantity, 
+            ts_rank_cd(to_tsvector('simple', COALESCE(name, '')), plainto_tsquery('simple', $1)) AS relevance
+            FROM inventory
+            WHERE to_tsvector('simple', COALESCE(name, '')) @@ plainto_tsquery('simple', $1)
+            ORDER BY relevance DESC;
+
+		`
+		rows, err := r.db.QueryContext(ctx, inventoryQuery, query)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var inventoryItem models.SearchResult
+			var quantity sql.NullInt32
+			if err := rows.Scan(&inventoryItem.ID, &inventoryItem.Name, &quantity, &inventoryItem.Relevance); err != nil {
+				return nil, err
+			}
+			if quantity.Valid {
+				q := int(quantity.Int32)
+				inventoryItem.Quantity = &q
+			}
+			inventoryItems = append(inventoryItems, inventoryItem)
+		}
+	}
 
 	return &models.SearchResponse{
-		MenuItems:    menuItems,
-		Orders:       orders,
-		TotalMatches: len(menuItems) + len(orders),
+		MenuItems:     menuItems,
+		Orders:        orders,
+		InventoryItem: inventoryItems,
+		TotalMatches:  len(menuItems) + len(orders) + len(inventoryItems),
 	}, nil
 }
 
