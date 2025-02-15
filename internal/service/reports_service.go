@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"frappuccino/internal/dal"
-	"frappuccino/models"
 )
 
 type ReportService struct {
@@ -72,6 +71,6 @@ func (s *ReportService) GetOrderedItemsByPeriod(ctx context.Context, period stri
 	return groupedOrders, nil
 }
 
-func (s *ReportService) Search(ctx context.Context, query string, filters []string, minPrice, maxPrice float64) (*models.SearchResponse, error) {
+func (s *ReportService) Search(ctx context.Context, query string, filters []string, minPrice, maxPrice float64) (map[string]interface{}, error) {
 	return s.repo.FullTextSearch(ctx, query, filters, minPrice, maxPrice)
 }

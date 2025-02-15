@@ -1,19 +1,24 @@
 package models
 
-type SearchResult struct {
-	ID          int      `json:"id"`
-	Name        string   `json:"name"`
-	Description *string  `json:"description"`
-	Quantity    *int     `json:"quantity,omitempty"`
-	Price       *float64 `json:"price,omitempty"`
-	Items       []string `json:"items"`
-	Total       float64  `json:"total"`
-	Relevance   float64  `json:"relevance"`
+type MenuItemR struct {
+	ID          int
+	Name        string
+	Description string
+	Price       float64
+	Relevance   float64
 }
 
-type SearchResponse struct {
-	MenuItems     []SearchResult `json:"menu_items"`
-	Orders        []SearchResult `json:"orders"`
-	InventoryItem []SearchResult `json:"inventory"`
-	TotalMatches  int            `json:"total matches"`
+type OrderItemR struct {
+	ID        int
+	Customer  string
+	Items     []string
+	Total     float64
+	Relevance float64
+}
+
+type InventoryItemR struct {
+	ID        int
+	Name      string
+	Quantity  int
+	Relevance float64
 }

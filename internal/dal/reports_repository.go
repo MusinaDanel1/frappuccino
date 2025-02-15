@@ -18,7 +18,7 @@ type ReportRepository struct {
 type ReportInterface interface {
 	GetTotalSales(ctx context.Context) (float64, error)
 	GetPopularItems(ctx context.Context) ([]string, error)
-	FullTextSearch(ctx context.Context, query string, filters []string, minPrice, maxPrice float64) (*models.SearchResponse, error)
+	FullTextSearch(ctx context.Context, query string, filters []string, minPrice, maxPrice float64) (map[string]interface{}, error)
 }
 
 func NewReportRepository(db *sql.DB) (*ReportRepository, error) {
@@ -80,10 +80,9 @@ func (s *ReportRepository) GetPopularItems(ctx context.Context) ([]string, error
 	return popularItems, nil
 }
 
-func (r *ReportRepository) FullTextSearch(ctx context.Context, query string, filters []string, minPrice, maxPrice float64) (*models.SearchResponse, error) {
-	var menuItems []models.SearchResult
-	var orders []models.SearchResult
-	var inventoryItems []models.SearchResult
+func (r *ReportRepository) FullTextSearch(ctx context.Context, query string, filters []string, minPrice, maxPrice float64) (map[string]interface{}, error) {
+	result := make(map[string]interface{})
+	var totalMatches int
 
 	log.Println("query:", query)
 	log.Println("filters:", filters)
@@ -93,6 +92,7 @@ func (r *ReportRepository) FullTextSearch(ctx context.Context, query string, fil
 	tsxQuery := fmt.Sprintf("plainto_tsquery('simple', %s)", pq.QuoteLiteral(strings.ReplaceAll(query, " ", " <-> ")))
 
 	if contains(filters, "menu") || contains(filters, "all") {
+		menuItems := []map[string]interface{}{}
 		menuQuery := `
 			SELECT menu_item_id, name, description, price, 
 				   ts_rank_cd(to_tsvector('simple', name || ' ' || COALESCE(description, '')), ` + tsxQuery + `) AS relevance
@@ -108,15 +108,27 @@ func (r *ReportRepository) FullTextSearch(ctx context.Context, query string, fil
 		defer rows.Close()
 
 		for rows.Next() {
-			var item models.SearchResult
+			var item models.MenuItemR
+
 			if err := rows.Scan(&item.ID, &item.Name, &item.Description, &item.Price, &item.Relevance); err != nil {
 				return nil, err
 			}
-			menuItems = append(menuItems, item)
+
+			menuItemMap := map[string]interface{}{
+				"id":          item.ID,
+				"name":        item.Name,
+				"description": item.Description,
+				"price":       item.Price,
+				"relevance":   item.Relevance,
+			}
+			menuItems = append(menuItems, menuItemMap)
 		}
+		result["menu_items"] = menuItems
+		totalMatches += len(menuItems)
 	}
 
 	if contains(filters, "orders") || contains(filters, "all") {
+		orders := []map[string]interface{}{}
 		orderQuery := `
 			SELECT subquery.order_id, subquery.customer_name, subquery.total_amount, subquery.items,
 			       ts_rank_cd(
@@ -144,24 +156,35 @@ func (r *ReportRepository) FullTextSearch(ctx context.Context, query string, fil
 		defer rows.Close()
 
 		for rows.Next() {
-			var order models.SearchResult
-			var items []string
-			if err := rows.Scan(&order.ID, &order.Name, &order.Total, pq.Array(&items), &order.Relevance); err != nil {
+			var order models.OrderItemR
+
+			if err := rows.Scan(&order.ID, &order.Customer, pq.Array(&order.Items), &order.Total, &order.Relevance); err != nil {
 				return nil, err
 			}
-			order.Items = items
-			orders = append(orders, order)
+
+			orderMap := map[string]interface{}{
+				"id":            order.ID,
+				"customer_name": order.Customer,
+				"items":         order.Items,
+				"total":         order.Total,
+				"relevance":     order.Relevance,
+			}
+
+			orders = append(orders, orderMap)
 		}
+		result["orders"] = orders
+		totalMatches += len(orders)
 	}
-	if contains(filters, "all") {
-		log.Println("Executing inventoryQuery with query:", query)
+
+	if contains(filters, "inventory") || contains(filters, "all") {
+		inventoryItems := []map[string]interface{}{}
+
 		inventoryQuery := `
 			SELECT ingredient_id, name, quantity, 
             ts_rank_cd(to_tsvector('simple', COALESCE(name, '')), plainto_tsquery('simple', $1)) AS relevance
             FROM inventory
             WHERE to_tsvector('simple', COALESCE(name, '')) @@ plainto_tsquery('simple', $1)
             ORDER BY relevance DESC;
-
 		`
 		rows, err := r.db.QueryContext(ctx, inventoryQuery, query)
 		if err != nil {
@@ -170,25 +193,27 @@ func (r *ReportRepository) FullTextSearch(ctx context.Context, query string, fil
 		defer rows.Close()
 
 		for rows.Next() {
-			var inventoryItem models.SearchResult
-			var quantity sql.NullInt32
-			if err := rows.Scan(&inventoryItem.ID, &inventoryItem.Name, &quantity, &inventoryItem.Relevance); err != nil {
+			var item models.InventoryItemR
+
+			if err := rows.Scan(&item.ID, &item.Name, &item.Quantity, &item.Relevance); err != nil {
 				return nil, err
 			}
-			if quantity.Valid {
-				q := int(quantity.Int32)
-				inventoryItem.Quantity = &q
-			}
-			inventoryItems = append(inventoryItems, inventoryItem)
-		}
-	}
 
-	return &models.SearchResponse{
-		MenuItems:     menuItems,
-		Orders:        orders,
-		InventoryItem: inventoryItems,
-		TotalMatches:  len(menuItems) + len(orders) + len(inventoryItems),
-	}, nil
+			inventoryMap := map[string]interface{}{
+				"id":        item.ID,
+				"name":      item.Name,
+				"quantity":  item.Quantity,
+				"relevance": item.Relevance,
+			}
+
+			inventoryItems = append(inventoryItems, inventoryMap)
+		}
+		result["inventory"] = inventoryItems
+		totalMatches += len(inventoryItems)
+	}
+	result["total_matches"] = totalMatches
+
+	return result, nil
 }
 
 func contains(slice []string, item string) bool {
